@@ -3,7 +3,7 @@ version: 2.1
 executors:
   docker-executor:
     docker:
-      - image: cimg/python:3.11  # CircleCI-maintained Python image
+      - image: cimg/python:3.11
     working_directory: ~/repo
 
 jobs:
@@ -20,35 +20,34 @@ jobs:
       - run:
           name: Start services with Docker Compose
           command: |
-            docker-compose up -d --build
+            docker-compose up -d
 
       - run:
           name: Wait for FastAPI to be healthy
           command: |
             for i in {1..15}; do
               echo "⏳ Checking FastAPI health... ($i/15)"
-              if docker-compose exec pharmaseek-fastapi curl -sf http://127.0.0.1:8000/health; then
+              if curl -sf http://localhost:8030/health; then
                 echo "✅ FastAPI is up!"
                 break
               fi
               sleep 5
-              if [ $i -eq 15 ]; then
-                echo "❌ FastAPI failed to start after 15 attempts"
-                docker-compose logs
-                docker-compose exec pharmaseek-fastapi curl -v http://localhost:8000/health || true
+              if [ "$i" -eq 15 ]; then
+                echo "❌ FastAPI failed to start"
+                docker-compose logs pharmaseek-fastapi
                 exit 1
               fi
             done
 
       - run:
-          name: Run tests with coverage
+          name: Run tests
           command: |
-            docker-compose exec pharmaseek-fastapi pytest --cov=app --cov-report=term-missing
+            docker-compose exec pharmaseek-fastapi pytest
 
       - run:
           name: Tear down
           when: always
-          command: docker-compose down -v
+          command: docker-compose down
 
 workflows:
   version: 2
