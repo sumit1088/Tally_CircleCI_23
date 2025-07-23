@@ -94,3 +94,7 @@ volumes:
   redis_data:
   shared_tmp:
   pgdata:
+
+networks:
+  default:
+    name: project_default
