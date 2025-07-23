@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m spacy download en_core_web_sm
 
 # Copy only the relevant app directory into /app/app (avoid double nesting)
-COPY ./app /app/app
+COPY ./app /app
 COPY ./app/db/init-multiple-db.sql /app/app/db/init-multiple-db.sql
 #COPY .env .env  # Optional: If you use an env file
 
@@ -30,4 +30,4 @@ COPY ./app/db/init-multiple-db.sql /app/app/db/init-multiple-db.sql
 HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
 
 # Default command
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
