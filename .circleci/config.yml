@@ -20,41 +20,43 @@ jobs:
           command: docker compose build
 
       - run:
-          name: Start services
+          name: Start Docker services
           command: docker compose up -d
 
       - run:
-          name: Wait for FastAPI to start
+          name: Wait for FastAPI to be ready
           command: |
             echo "Using Docker network: project_default"
-            for i in {1..15}; do
+            for i in $(seq 1 15); do
               echo "Checking if FastAPI is up... ($i/15)"
               STATUS=$(docker run --rm --network project_default curlimages/curl:7.88.1 \
                 -s -o /dev/null -w "%{http_code}" http://pharmaseek-fastapi:8000/docs)
+
               if [ "$STATUS" = "200" ]; then
-                echo "✅ FastAPI is ready!"
+                echo "✅ FastAPI is up and returned HTTP 200!"
                 exit 0
               fi
-              echo "⏳ Waiting for FastAPI to be ready..."
+
+              echo "⏳ Still waiting... Status: $STATUS"
               sleep 5
             done
-            echo "❌ FastAPI not responding"
+            echo "❌ FastAPI did not respond with HTTP 200"
             exit 1
 
       - run:
-          name: Show FastAPI container logs
+          name: Show FastAPI container logs (on failure)
           when: on_fail
           command: |
             echo "--- FastAPI Container Logs ---"
             docker logs $(docker ps -aqf "name=pharmaseek-fastapi") || true
 
       - run:
-          name: Debug Docker state
+          name: Debug Docker state (on failure)
           when: on_fail
           command: |
             echo "--- Running Containers ---"
             docker ps -a
-            echo "--- Inspecting FastAPI container ---"
+            echo "--- Inspect FastAPI Container ---"
             docker inspect $(docker ps -aqf "name=pharmaseek-fastapi") || true
 
 workflows:
