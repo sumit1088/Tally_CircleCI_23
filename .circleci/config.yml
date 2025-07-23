@@ -23,7 +23,7 @@ jobs:
           name: Start services
           command: docker compose up -d
 
-            - run:
+      - run:
           name: Wait for FastAPI to start
           command: |
             echo "Using Docker network: project_default"
