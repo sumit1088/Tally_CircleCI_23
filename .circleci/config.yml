@@ -40,12 +40,11 @@ jobs:
           name: Start FastAPI in background
           command: |
             docker compose up -d pharmaseek-fastapi redis db
-            sleep 10
       - run:
-          name: Run smoke test from inside Docker network
+          name: Run smoke test with retry loop
           command: |
             docker run --rm --network workspace_default curlimages/curl:7.88.1 \
-              curl -f http://pharmaseek-fastapi:8000/docs
+              sh -c 'for i in $(seq 1 10); do curl -sf http://pharmaseek-fastapi:8000/docs && exit 0 || sleep 3; done; echo "FastAPI not responding" && exit 1'
       - run:
           name: Shut down containers
           command: docker compose down
