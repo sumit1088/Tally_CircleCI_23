@@ -1,0 +1,96 @@
+services:
+  dev-fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "8030:8000"
+    volumes:
+      - .:/app
+      - dev-shared_tmp:/shared/tmp
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=tally_db_1
+      - POSTGRES_HOST=dev-db
+      - POSTGRES_PORT=5432  # Internal Docker port
+      - SECRET_KEY=your-secret-key-here
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - FIRST_SUPERUSER_EMAIL=admin@pharmaseek.com
+      - FIRST_SUPERUSER_PASSWORD=admin123
+      - DEBUG=true
+      - MINIO_ENDPOINT=192.168.1.133:8900
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=pharmaseek-docs
+      - MINIO_SECURE=false
+      - REDIS_URL=redis://redis:6379
+      - BACKEND_CORS_ORIGINS=["http://localhost:5173"]
+      - REDIS_URL=redis://dev-redis:6379
+    depends_on:
+      - dev-redis
+      - dev-db
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  dev-rq-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    depends_on:
+      - dev-redis
+      - dev-fastapi
+    command: >
+      sh -c "rq worker default --url $${REDIS_URL}"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=tally_db_1
+      - POSTGRES_HOST=dev-db
+      - POSTGRES_PORT=5432  # Internal Docker port
+      - SECRET_KEY=your-secret-key-here
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - FIRST_SUPERUSER_EMAIL=admin@pharmaseek.com
+      - FIRST_SUPERUSER_PASSWORD=admin123
+      - DEBUG=true
+      - MINIO_ENDPOINT=192.168.1.133:8900
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=pharmaseek-docs
+      - MINIO_SECURE=false
+      - BACKEND_CORS_ORIGINS=["http://localhost:5173"]
+      - REDIS_URL=redis://dev-redis:6379
+    volumes:
+      - .:/app
+      - dev-shared_tmp:/shared/tmp
+
+  dev-redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - dev-redis_data:/data
+
+  dev-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: tally_db_1
+    command: ["postgres", "-c", "max_connections=200"]
+    ports:
+      - "10300:5432"  # 👈 HostPort:ContainerPort
+    volumes:
+      - dev-pgdata:/var/lib/postgresql/data
+      - ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
+
+volumes:
+  dev-redis_data:
+  dev-shared_tmp:
+  dev-pgdata:

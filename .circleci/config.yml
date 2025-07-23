@@ -1,0 +1,54 @@
+version: 2.1
+
+executors:
+  docker-executor:
+    machine:
+      docker_layer_caching: true
+    working_directory: ~/workspace
+    resource_class: small
+
+jobs:
+  checkout_code:
+    executor: docker-executor
+    steps:
+      - checkout
+      - persist_to_workspace:
+          root: ~/workspace
+          paths:
+            - .
+
+  build_containers:
+    executor: docker-executor
+    steps:
+      - attach_workspace:
+          at: ~/workspace
+      - run:
+          name: Build FastAPI and Worker Containers
+          command: docker compose build pharmaseek-fastapi rq-worker
+
+  run_fastapi_check:
+    executor: docker-executor
+    steps:
+      - attach_workspace:
+          at: ~/workspace
+      - run:
+          name: Start FastAPI Server (smoke test)
+          command: |
+            docker compose up -d pharmaseek-fastapi
+            sleep 10  # Give it time to start
+            curl -f http://localhost:8030/docs || exit 1
+      - run:
+          name: Shut down containers
+          command: docker compose down
+
+workflows:
+  version: 2
+  build_and_validate:
+    jobs:
+      - checkout_code
+      - build_containers:
+          requires:
+            - checkout_code
+      - run_fastapi_check:
+          requires:
+            - build_containers

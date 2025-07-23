@@ -1,0 +1,22 @@
+  version: "3.9"
+
+  services:
+    init-db:
+      build:
+        context: .
+        target: development
+      command: ["python", "run_init.py"]
+      environment:
+        - POSTGRES_DB=tally_db_1
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=root
+        - POSTGRES_HOST=db # Connects to host's PostgreSQL instance
+        - POSTGRES_PORT=10300
+        - SECRET_KEY=dev_secret_123
+        - DATABASE_URL=postgresql://postgres:root@db:5432/tally_db_1
+      volumes:
+        - .:/app
+      working_dir: /app
+
+  volumes:
+    postgres_data:
