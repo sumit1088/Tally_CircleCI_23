@@ -88,7 +88,7 @@ services:
       - "10300:5432"  # 👈 HostPort:ContainerPort
     volumes:
       - dev-pgdata:/var/lib/postgresql/data
-      - ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
+      #- ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
 
 volumes:
   dev-redis_data:

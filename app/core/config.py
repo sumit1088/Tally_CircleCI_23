@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str
     MINIO_SECURE: bool = False
 
-    # OpenAI Configuration    
+    # OpenAI Configuration   
     OPENAI_MODEL: str = "gpt-4.1-nano"
 
     class Config:
