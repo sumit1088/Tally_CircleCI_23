@@ -40,7 +40,7 @@ jobs:
           name: Start FastAPI in background
           command: |
             docker compose up -d pharmaseek-fastapi redis db
-            sleep 10
+            sleep 20
       - run:
           name: Run smoke test from inside Docker network
           command: |
