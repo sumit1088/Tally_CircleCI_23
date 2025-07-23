@@ -90,7 +90,7 @@ services:
       - "10300:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
+      #- ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
