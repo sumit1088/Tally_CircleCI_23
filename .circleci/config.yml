@@ -18,7 +18,11 @@ jobs:
           docker_layer_caching: true
 
       - run:
-          name: Start services with Docker Compose
+          name: Build Docker containers
+          command: docker-compose build
+
+      - run:
+          name: Start Docker Compose
           command: |
             docker-compose up -d
 
@@ -27,7 +31,8 @@ jobs:
           command: |
             for i in {1..15}; do
               echo "⏳ Checking FastAPI health... ($i/15)"
-              if docker-compose exec pharmaseek-fastapi curl -sf http://localhost:8000/health; then
+              docker ps
+              if docker-compose exec -T pharmaseek-fastapi curl -sf http://localhost:8000/health; then
                 echo "✅ FastAPI is up!"
                 break
               fi
@@ -42,12 +47,12 @@ jobs:
       - run:
           name: Run tests (or lint/type-check)
           command: |
-            docker-compose exec pharmaseek-fastapi pytest
+            docker-compose exec -T pharmaseek-fastapi pytest
 
       - run:
           name: Tear down
           when: always
-          command: docker-compose down
+          command: docker-compose down --volumes
 
 workflows:
   version: 2
