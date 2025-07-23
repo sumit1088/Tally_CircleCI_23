@@ -8,13 +8,15 @@ services:
       target: development
     ports:
       - "8030:8000"
+    volumes:
+      - .:/app
+      - shared_tmp:/shared/tmp
     environment:
-      - PYTHONPATH=/app
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=root
       - POSTGRES_DB=tally_db_1
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
+      - POSTGRES_PORT=5432  # Internal Docker port
       - SECRET_KEY=your-secret-key-here
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -30,29 +32,27 @@ services:
       - REDIS_URL=redis://redis:6379
       - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://192.168.1.53:5173", "http://192.168.1.145:5173"]
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - redis
+      - db
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - shared_tmp:/shared/tmp
-      # Commented for CircleCI: use only locally
-      - .:/app
 
   rq-worker:
     build:
       context: .
       dockerfile: Dockerfile
       target: development
+    depends_on:
+      - redis
+      - pharmaseek-fastapi
+    command: >
+      sh -c "rq worker default --url $${REDIS_URL}"
     environment:
-      - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=root
       - POSTGRES_DB=tally_db_1
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
+      - POSTGRES_PORT=5432  # Internal Docker port
       - SECRET_KEY=your-secret-key-here
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -66,15 +66,9 @@ services:
       - MINIO_BUCKET=pharmaseek-docs
       - MINIO_SECURE=false
       - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://192.168.1.53:5173", "http://192.168.1.145:5173"]
-    depends_on:
-      - pharmaseek-fastapi
-      - redis
-    command: >
-      sh -c "rq worker default --url $${REDIS_URL}"
     volumes:
-      - shared_tmp:/shared/tmp
-      # Commented for CircleCI: use only locally
       - .:/app
+      - shared_tmp:/shared/tmp
 
   redis:
     image: redis:7
@@ -91,16 +85,10 @@ services:
       POSTGRES_DB: tally_db_1
     command: ["postgres", "-c", "max_connections=200", "-c", "log_connections=on"]
     ports:
-      - "10300:5432"
+      - "10300:5432"  # 👈 HostPort:ContainerPort
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # You can uncomment this if using local DB seeding
-      # - ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
 
 volumes:
   redis_data:
