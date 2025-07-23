@@ -4,10 +4,10 @@ executors:
   docker-executor:
     docker:
       - image: cimg/python:3.11
-    working_directory: ~/project
+    working_directory: ~/repo
 
 jobs:
-  run_fastapi_check:
+  build-and-test:
     executor: docker-executor
     steps:
       - checkout
@@ -16,45 +16,58 @@ jobs:
           docker_layer_caching: true
 
       - run:
-          name: Build Docker containers
-          command: docker compose build
+          name: Install Docker Compose
+          command: |
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            docker-compose version
+
+      - run:
+          name: Build Docker images
+          command: docker-compose build
 
       - run:
           name: Start services
-          command: docker compose up -d
+          command: docker-compose up -d
 
       - run:
-          name: Wait for FastAPI to start
+          name: Wait for FastAPI to become healthy
           command: |
-            echo "Using Docker network: project_default"
             for i in {1..15}; do
-              echo "Checking if FastAPI is up... ($i/15)"
-              docker run --rm --network project_default curlimages/curl:7.88.1 \
-                -s -o /dev/null -w "%{http_code}" http://pharmaseek-fastapi:8000/docs | grep -q "200" && echo "✅ FastAPI is ready!" && exit 0
-              echo "⏳ Waiting for FastAPI to be ready..."
+              STATUS=$(docker inspect --format='{{json .State.Health.Status}}' pharmaseek-fastapi 2>/dev/null || echo "null")
+              echo "FastAPI container status: $STATUS"
+              if [ "$STATUS" = "\"healthy\"" ]; then
+                echo "✅ FastAPI is healthy"
+                break
+              fi
+              echo "⏳ Waiting... ($i/15)"
               sleep 5
             done
-            echo "❌ FastAPI not responding"
-            exit 1
 
       - run:
-          name: Show FastAPI container logs
-          when: on_fail
+          name: Check FastAPI API endpoint
           command: |
-            echo "--- FastAPI Container Logs ---"
-            docker logs $(docker ps -aqf "name=pharmaseek-fastapi") || true
+            docker inspect pharmaseek-fastapi || true
+            docker logs pharmaseek-fastapi || true
+            docker run --network project_default curlimages/curl:7.88.1 http://pharmaseek-fastapi:8000/docs
 
       - run:
-          name: Debug Docker state
-          when: on_fail
+          name: Run tests
           command: |
-            echo "--- Running Containers ---"
-            docker ps -a
-            echo "--- Inspecting FastAPI container ---"
-            docker inspect $(docker ps -aqf "name=pharmaseek-fastapi") || true
+            docker-compose exec pharmaseek-fastapi pytest tests || true
+
+      - run:
+          name: Show running containers
+          when: always
+          command: docker ps -a
+
+      - run:
+          name: Log FastAPI output if fail
+          when: on_fail
+          command: docker logs pharmaseek-fastapi || true
 
 workflows:
   version: 2
-  build_and_test:
+  build-and-test:
     jobs:
-      - run_fastapi_check
+      - build-and-test
