@@ -27,7 +27,7 @@ jobs:
           command: |
             for i in {1..15}; do
               echo "⏳ Checking FastAPI health... ($i/15)"
-              if docker-compose exec pharmaseek-fastapi curl -sf http://127.0.0.1:8000/health;
+              if docker-compose exec pharmaseek-fastapi curl -sf http://127.0.0.1:8000/health; then
                 echo "✅ FastAPI is up!"
                 break
               fi
