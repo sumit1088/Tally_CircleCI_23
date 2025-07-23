@@ -37,19 +37,21 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db = next(get_db())  
+    db = next(get_db())
     try:
-        await to_thread(init_db, db)
-        print("✅ Database initialized")
+        logging.info("🔁 Initializing database...")
+        init_db(db)
+        logging.info("✅ Database initialized.")
 
-        await to_thread(seed_data, db)
-        print("✅ Dummy data seeded successfully")
+        logging.info("🔁 Seeding initial data...")
+        seed_data(db)
+        logging.info("✅ Dummy data seeded.")
     except Exception as e:
-        print(f"❌ DB init/seed failed: {e}")   
+        logging.error(f"❌ Initialization error: {e}")
     finally:
-        db.close()  
+        db.close()
 
-    yield
+
     # Shutdown
     pass
 

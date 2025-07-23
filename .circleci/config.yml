@@ -1,52 +1,56 @@
 version: 2.1
 
-jobs:
-  build:
+executors:
+  docker-executor:
     docker:
       - image: cimg/python:3.11
+    working_directory: ~/repo
+
+jobs:
+  test:
+    executor: docker-executor
 
     steps:
       - checkout
 
       - setup_remote_docker:
+          version: default
           docker_layer_caching: true
 
       - run:
-          name: Install Docker Compose
+          name: Start services with Docker Compose
           command: |
-            sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
+            docker-compose up -d
 
       - run:
-          name: Build containers
-          command: docker-compose build
-
-      - run:
-          name: Start services
-          command: docker-compose up -d
-
-      - run:
-          name: List containers (debug)
-          command: docker ps -a
-
-      - run:
-          name: Logs for FastAPI
-          command: docker-compose logs pharmaseek-fastapi || true
-
-      - run:
-          name: Wait for FastAPI to be ready
+          name: Wait for FastAPI to be healthy
           command: |
-            for i in $(seq 1 15); do
-              echo "Checking if FastAPI is up... ($i/15)"
-              docker run --rm --network project_default curlimages/curl:7.88.1 \
-                curl -s http://pharmaseek-fastapi:8000/docs && echo "✅ FastAPI is up!" && exit 0
+            for i in {1..15}; do
+              echo "⏳ Checking FastAPI health... ($i/15)"
+              if docker-compose exec pharmaseek-fastapi curl -sf http://localhost:8000/health; then
+                echo "✅ FastAPI is up!"
+                break
+              fi
               sleep 5
+              if [ $i -eq 15 ]; then
+                echo "❌ FastAPI failed to start"
+                docker-compose logs
+                exit 1
+              fi
             done
-            echo "❌ FastAPI not responding"
-            exit 1
+
+      - run:
+          name: Run tests (or lint/type-check)
+          command: |
+            docker-compose exec pharmaseek-fastapi pytest
+
+      - run:
+          name: Tear down
+          when: always
+          command: docker-compose down
 
 workflows:
   version: 2
-  build_and_test:
+  test-app:
     jobs:
-      - build
+      - test
