@@ -9,7 +9,6 @@ jobs:
       - checkout
 
       - setup_remote_docker:
-          version: 20.10.18
           docker_layer_caching: true
 
       - run:
@@ -40,8 +39,14 @@ jobs:
             for i in $(seq 1 15); do
               echo "Checking if FastAPI is up... ($i/15)"
               docker run --rm --network project_default curlimages/curl:7.88.1 \
-                curl -s http://pharmaseek-fastapi:8000/docs && exit 0
+                curl -s http://pharmaseek-fastapi:8000/docs && echo "✅ FastAPI is up!" && exit 0
               sleep 5
             done
             echo "❌ FastAPI not responding"
             exit 1
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
