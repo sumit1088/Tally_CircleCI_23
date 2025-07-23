@@ -26,17 +26,14 @@ jobs:
       - run:
           name: Wait for FastAPI to start
           command: |
-            NETWORK_NAME=$(docker network ls --filter name=_default --format "{{.Name}}" | head -n 1)
-            echo "Using Docker network: $NETWORK_NAME"
-            
+            echo "Using Docker network: project_default"
             for i in {1..10}; do
               echo "Checking if FastAPI is up... ($i/10)"
-              docker run --rm --network "$NETWORK_NAME" curlimages/curl:7.88.1 \
+              docker run --rm --network project_default curlimages/curl:7.88.1 \
                 curl -s pharmaseek-fastapi:8000/docs && echo "✅ FastAPI is ready!" && exit 0
               echo "⏳ Waiting for FastAPI to be ready..."
               sleep 5
             done
-
             echo "❌ FastAPI not responding"
             exit 1
 
