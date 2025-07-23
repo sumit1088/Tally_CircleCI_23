@@ -24,17 +24,26 @@ jobs:
           command: docker compose up -d
 
       - run:
+          name: Check running containers before health check
+          command: docker ps -a
+
+      - run:
           name: Wait for FastAPI to start
           command: |
             echo "Using Docker network: project_default"
-            for i in {1..10}; do
-              echo "Checking if FastAPI is up... ($i/10)"
-              docker run --rm --network project_default curlimages/curl:7.88.1 \
-                curl -s pharmaseek-fastapi:8000/docs && echo "✅ FastAPI is ready!" && exit 0
+            for i in {1..15}; do
+              echo "Checking if FastAPI is up... ($i/15)"
+              STATUS=$(docker run --rm --network project_default curlimages/curl:7.88.1 \
+                curl -s -o /dev/null -w "%{http_code}" pharmaseek-fastapi:8000/docs)
+              echo "HTTP Status: $STATUS"
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ FastAPI is ready!"
+                exit 0
+              fi
               echo "⏳ Waiting for FastAPI to be ready..."
               sleep 5
             done
-            echo "❌ FastAPI not responding"
+            echo "❌ FastAPI not responding after waiting"
             exit 1
 
       - run:
