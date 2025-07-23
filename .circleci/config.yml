@@ -1,56 +1,110 @@
-version: 2.1
+version: '3.9'
 
-executors:
-  docker-executor:
-    docker:
-      - image: cimg/python:3.11
-    working_directory: ~/repo
+services:
+  pharmaseek-fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "8030:8000"
+    environment:
+      - PYTHONPATH=/app
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=tally_db_1
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - SECRET_KEY=your-secret-key-here
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - FIRST_SUPERUSER_EMAIL=admin@pharmaseek.com
+      - FIRST_SUPERUSER_PASSWORD=admin123
+      - DEBUG=true
+      - MINIO_ENDPOINT=192.168.1.133:8900
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=pharmaseek-docs
+      - MINIO_SECURE=false
+      - REDIS_URL=redis://redis:6379
+      - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://192.168.1.53:5173", "http://192.168.1.145:5173"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - shared_tmp:/shared/tmp
+      - .:/app
 
-jobs:
-  test:
-    executor: docker-executor
+  rq-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=tally_db_1
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - SECRET_KEY=your-secret-key-here
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - FIRST_SUPERUSER_EMAIL=admin@pharmaseek.com
+      - FIRST_SUPERUSER_PASSWORD=admin123
+      - DEBUG=true
+      - MINIO_ENDPOINT=192.168.1.133:8900
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET=pharmaseek-docs
+      - MINIO_SECURE=false
+      - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://192.168.1.53:5173", "http://192.168.1.145:5173"]
+    depends_on:
+      - pharmaseek-fastapi
+      - redis
+    command: >
+      sh -c "rq worker default --url $${REDIS_URL}"
+    volumes:
+      - shared_tmp:/shared/tmp
+      - .:/app
 
-    steps:
-      - checkout
+  redis:
+    image: redis:7
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
 
-      - setup_remote_docker:
-          version: default
-          docker_layer_caching: true
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: tally_db_1
+    command: ["postgres", "-c", "max_connections=200", "-c", "log_connections=on"]
+    ports:
+      - "10300:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Optional: Uncomment if you want to initialize with SQL
+      # - ./app/db/init-multiple-db.sql:/docker-entrypoint-initdb.d/init-multiple-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-      - run:
-          name: Start services with Docker Compose
-          command: |
-            docker-compose up -d
+volumes:
+  redis_data:
+  shared_tmp:
+  pgdata:
 
-      - run:
-          name: Wait for FastAPI to be healthy
-          command: |
-            for i in {1..15}; do
-              echo "⏳ Checking FastAPI health... ($i/15)"
-              if curl -sf http://localhost:8030/health; then
-                echo "✅ FastAPI is up!"
-                break
-              fi
-              sleep 5
-              if [ "$i" -eq 15 ]; then
-                echo "❌ FastAPI failed to start"
-                docker-compose logs pharmaseek-fastapi
-                exit 1
-              fi
-            done
-
-      - run:
-          name: Run tests
-          command: |
-            docker-compose exec pharmaseek-fastapi pytest
-
-      - run:
-          name: Tear down
-          when: always
-          command: docker-compose down
-
-workflows:
-  version: 2
-  test-app:
-    jobs:
-      - test
+networks:
+  default:
+    name: project_default
