@@ -2,16 +2,17 @@ version: 2.1
 
 executors:
   docker-executor:
-    machine:
-      docker_layer_caching: true
+    docker:
+      - image: cimg/python:3.11  # Lightweight CircleCI Python image
     working_directory: ~/workspace
-    resource_class: small
 
 jobs:
   checkout_code:
     executor: docker-executor
     steps:
       - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
       - persist_to_workspace:
           root: ~/workspace
           paths:
@@ -22,6 +23,8 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/workspace
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Build FastAPI and Worker Containers
           command: docker compose build pharmaseek-fastapi rq-worker
@@ -31,11 +34,13 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/workspace
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Start FastAPI Server (smoke test)
           command: |
             docker compose up -d pharmaseek-fastapi
-            sleep 10  # Give it time to start
+            sleep 10
             curl -f http://localhost:8030/docs || exit 1
       - run:
           name: Shut down containers
