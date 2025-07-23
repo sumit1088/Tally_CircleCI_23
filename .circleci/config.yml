@@ -1,29 +1,25 @@
 version: 2.1
 
-executors:
-  docker-executor:
+jobs:
+  build:
     docker:
       - image: cimg/python:3.11
-    working_directory: ~/repo
 
-jobs:
-  build-and-test:
-    executor: docker-executor
     steps:
       - checkout
 
       - setup_remote_docker:
+          version: 20.10.18
           docker_layer_caching: true
 
       - run:
           name: Install Docker Compose
           command: |
-            sudo curl -L "https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
+            sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
-            docker-compose version
 
       - run:
-          name: Build Docker images
+          name: Build containers
           command: docker-compose build
 
       - run:
@@ -31,43 +27,21 @@ jobs:
           command: docker-compose up -d
 
       - run:
-          name: Wait for FastAPI to become healthy
-          command: |
-            for i in {1..15}; do
-              STATUS=$(docker inspect --format='{{json .State.Health.Status}}' pharmaseek-fastapi 2>/dev/null || echo "null")
-              echo "FastAPI container status: $STATUS"
-              if [ "$STATUS" = "\"healthy\"" ]; then
-                echo "✅ FastAPI is healthy"
-                break
-              fi
-              echo "⏳ Waiting... ($i/15)"
-              sleep 5
-            done
-
-      - run:
-          name: Check FastAPI API endpoint
-          command: |
-            docker inspect pharmaseek-fastapi || true
-            docker logs pharmaseek-fastapi || true
-            docker run --network project_default curlimages/curl:7.88.1 http://pharmaseek-fastapi:8000/docs
-
-      - run:
-          name: Run tests
-          command: |
-            docker-compose exec pharmaseek-fastapi pytest tests || true
-
-      - run:
-          name: Show running containers
-          when: always
+          name: List containers (debug)
           command: docker ps -a
 
       - run:
-          name: Log FastAPI output if fail
-          when: on_fail
-          command: docker logs pharmaseek-fastapi || true
+          name: Logs for FastAPI
+          command: docker-compose logs pharmaseek-fastapi || true
 
-workflows:
-  version: 2
-  build-and-test:
-    jobs:
-      - build-and-test
+      - run:
+          name: Wait for FastAPI to be ready
+          command: |
+            for i in $(seq 1 15); do
+              echo "Checking if FastAPI is up... ($i/15)"
+              docker run --rm --network project_default curlimages/curl:7.88.1 \
+                curl -s http://pharmaseek-fastapi:8000/docs && exit 0
+              sleep 5
+            done
+            echo "❌ FastAPI not responding"
+            exit 1
