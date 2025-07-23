@@ -20,5 +20,8 @@ RUN python -m spacy download en_core_web_sm
 # Copy application code
 COPY . .
 
+# ✅ Add healthcheck for CI/Docker awareness
+HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+
 # Default command (can be overridden in docker-compose)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

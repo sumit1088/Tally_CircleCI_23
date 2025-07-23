@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.middleware.logging_middleware import LoggingMiddleware
 from app.db.seeder import seed_data
 import logging
+from asyncio import to_thread
 
 logging.basicConfig(
     level=logging.INFO,  # Ensure INFO level is active
@@ -16,19 +17,35 @@ logging.basicConfig(
 
 
 
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     # Startup
+#     db = next(get_db())  
+#     try:
+#         init_db(db)
+#         print("Database initialization completed")
+
+#          # ✅ Run the seeder
+#         seed_data(db)
+#         print("✅ Dummy data seeded successfully")
+#     except Exception as e:
+#         print(f"Database initialization failed: {e}")   
+#     finally:
+#         db.close()  
+
+#     yield
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     db = next(get_db())  
     try:
-        init_db(db)
-        print("Database initialization completed")
+        await to_thread(init_db, db)
+        print("✅ Database initialized")
 
-         # ✅ Run the seeder
-        seed_data(db)
+        await to_thread(seed_data, db)
         print("✅ Dummy data seeded successfully")
     except Exception as e:
-        print(f"Database initialization failed: {e}")   
+        print(f"❌ DB init/seed failed: {e}")   
     finally:
         db.close()  
 
